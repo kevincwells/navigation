@@ -45,8 +45,10 @@
 
 namespace move_base {
 
-  MoveBase::MoveBase(tf::TransformListener& tf) :
+  MoveBase::MoveBase(tf::TransformListener& tf, ros::NodeHandle& nh, ros::NodeHandle& private_nh) :
     tf_(tf),
+    nh_(nh),
+    private_nh_(private_nh),
     as_(NULL),
     planner_costmap_ros_(NULL), controller_costmap_ros_(NULL),
     bgp_loader_("nav_core", "nav_core::BaseGlobalPlanner"),
@@ -57,25 +59,22 @@ namespace move_base {
 
     as_ = new MoveBaseActionServer(ros::NodeHandle(), "move_base", boost::bind(&MoveBase::executeCb, this, _1), false);
 
-    ros::NodeHandle private_nh("~");
-    ros::NodeHandle nh;
-
     recovery_trigger_ = PLANNING_R;
 
     //get some parameters that will be global to the move base node
     std::string global_planner, local_planner;
-    private_nh.param("base_global_planner", global_planner, std::string("navfn/NavfnROS"));
-    private_nh.param("base_local_planner", local_planner, std::string("base_local_planner/TrajectoryPlannerROS"));
-    private_nh.param("global_costmap/robot_base_frame", robot_base_frame_, std::string("base_link"));
-    private_nh.param("global_costmap/global_frame", global_frame_, std::string("/map"));
-    private_nh.param("planner_frequency", planner_frequency_, 0.0);
-    private_nh.param("controller_frequency", controller_frequency_, 20.0);
-    private_nh.param("planner_patience", planner_patience_, 5.0);
-    private_nh.param("controller_patience", controller_patience_, 15.0);
-    private_nh.param("max_planning_retries", max_planning_retries_, -1);  // disabled by default
+    private_nh_.param("base_global_planner", global_planner, std::string("navfn/NavfnROS"));
+    private_nh_.param("base_local_planner", local_planner, std::string("base_local_planner/TrajectoryPlannerROS"));
+    private_nh_.param("global_costmap/robot_base_frame", robot_base_frame_, std::string("base_link"));
+    private_nh_.param("global_costmap/global_frame", global_frame_, std::string("/map"));
+    private_nh_.param("planner_frequency", planner_frequency_, 0.0);
+    private_nh_.param("controller_frequency", controller_frequency_, 20.0);
+    private_nh_.param("planner_patience", planner_patience_, 5.0);
+    private_nh_.param("controller_patience", controller_patience_, 15.0);
+    private_nh_.param("max_planning_retries", max_planning_retries_, -1);  // disabled by default
 
-    private_nh.param("oscillation_timeout", oscillation_timeout_, 0.0);
-    private_nh.param("oscillation_distance", oscillation_distance_, 0.5);
+    private_nh_.param("oscillation_timeout", oscillation_timeout_, 0.0);
+    private_nh_.param("oscillation_distance", oscillation_distance_, 0.5);
 
     //set up plan triple buffer
     planner_plan_ = new std::vector<geometry_msgs::PoseStamped>();
@@ -86,8 +85,8 @@ namespace move_base {
     planner_thread_ = new boost::thread(boost::bind(&MoveBase::planThread, this));
 
     //for comanding the base
-    vel_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
-    current_goal_pub_ = private_nh.advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
+    vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+    current_goal_pub_ = private_nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
 
     ros::NodeHandle action_nh("move_base");
     action_goal_pub_ = action_nh.advertise<move_base_msgs::MoveBaseActionGoal>("goal", 1);
@@ -99,14 +98,14 @@ namespace move_base {
     goal_sub_ = simple_nh.subscribe<geometry_msgs::PoseStamped>("goal", 1, boost::bind(&MoveBase::goalCB, this, _1));
 
     //we'll assume the radius of the robot to be consistent with what's specified for the costmaps
-    private_nh.param("local_costmap/inscribed_radius", inscribed_radius_, 0.325);
-    private_nh.param("local_costmap/circumscribed_radius", circumscribed_radius_, 0.46);
-    private_nh.param("clearing_radius", clearing_radius_, circumscribed_radius_);
-    private_nh.param("conservative_reset_dist", conservative_reset_dist_, 3.0);
+    private_nh_.param("local_costmap/inscribed_radius", inscribed_radius_, 0.325);
+    private_nh_.param("local_costmap/circumscribed_radius", circumscribed_radius_, 0.46);
+    private_nh_.param("clearing_radius", clearing_radius_, circumscribed_radius_);
+    private_nh_.param("conservative_reset_dist", conservative_reset_dist_, 3.0);
 
-    private_nh.param("shutdown_costmaps", shutdown_costmaps_, false);
-    private_nh.param("clearing_rotation_allowed", clearing_rotation_allowed_, true);
-    private_nh.param("recovery_behavior_enabled", recovery_behavior_enabled_, true);
+    private_nh_.param("shutdown_costmaps", shutdown_costmaps_, false);
+    private_nh_.param("clearing_rotation_allowed", clearing_rotation_allowed_, true);
+    private_nh_.param("recovery_behavior_enabled", recovery_behavior_enabled_, true);
 
     //create the ros wrapper for the planner's costmap... and initializer a pointer we'll use with the underlying map
     planner_costmap_ros_ = new costmap_2d::Costmap2DROS("global_costmap", tf_);
@@ -170,10 +169,10 @@ namespace move_base {
     controller_costmap_ros_->start();
 
     //advertise a service for getting a plan
-    make_plan_srv_ = private_nh.advertiseService("make_plan", &MoveBase::planService, this);
+    make_plan_srv_ = private_nh_.advertiseService("make_plan", &MoveBase::planService, this);
 
     //advertise a service for clearing the costmaps
-    clear_costmaps_srv_ = private_nh.advertiseService("clear_costmaps", &MoveBase::clearCostmapsService, this);
+    clear_costmaps_srv_ = private_nh_.advertiseService("clear_costmaps", &MoveBase::clearCostmapsService, this);
 
     //if we shutdown our costmaps when we're deactivated... we'll do that now
     if(shutdown_costmaps_){
@@ -183,7 +182,7 @@ namespace move_base {
     }
 
     //load any user specified recovery behaviors, and if that fails load the defaults
-    if(!loadRecoveryBehaviors(private_nh)){
+    if(!loadRecoveryBehaviors(private_nh_)){
       loadDefaultRecoveryBehaviors();
     }
 

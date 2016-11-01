@@ -87,7 +87,7 @@ namespace move_base {
        * @param name The name of the action
        * @param tf A reference to a TransformListener
        */
-      MoveBase(tf::TransformListener& tf);
+      MoveBase(tf::TransformListener& tf, ros::NodeHandle& nh, ros::NodeHandle& private_nh);
 
       /**
        * @brief  Destructor - Cleans up
@@ -174,6 +174,8 @@ namespace move_base {
       void wakePlanner(const ros::TimerEvent& event);
 
       tf::TransformListener& tf_;
+      ros::NodeHandle& nh_;
+      ros::NodeHandle& private_nh_;
 
       MoveBaseActionServer* as_;
 

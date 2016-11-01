@@ -50,6 +50,11 @@ add_executable(move_base_node
 target_link_libraries(move_base_node move_base)
 set_target_properties(move_base_node PROPERTIES OUTPUT_NAME move_base)
 
+add_library(move_base_nodelet
+  src/move_base_nodelet.cpp
+)
+target_link_libraries(move_base_nodelet move_base)
+
 install(DIRECTORY launch
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
     USE_SOURCE_PERMISSIONS

@@ -1,0 +1,7 @@
+<library path="lib/libmove_base_nodelet">
+  <class name="move_base/MoveBaseNodelet" type="move_base::MoveBaseNodelet" base_class_type="nodelet::Nodelet">
+  <description>
+  Nodelet ROS wrapper for move_base.
+  </description>
+  </class>
+</library>

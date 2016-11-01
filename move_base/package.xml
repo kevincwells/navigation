@@ -31,6 +31,7 @@
     <build_depend>std_srvs</build_depend>
     <build_depend>tf</build_depend>
     <build_depend>visualization_msgs</build_depend>
+    <build_depend>nodelet</build_depend>
 
     <!--These deps aren't strictly needed, but given the default parameters require them to work, we'll enforce that they build -->
     <build_depend>base_local_planner</build_depend>
@@ -59,5 +60,10 @@
     <run_depend>std_srvs</run_depend>
     <run_depend>tf</run_depend>
     <run_depend>visualization_msgs</run_depend>
+    <run_depend>nodelet</run_depend>
+  
+    <export>
+      <nodelet plugin="${prefix}/nodelet_plugins.xml" />
+    </export>
 
 </package>

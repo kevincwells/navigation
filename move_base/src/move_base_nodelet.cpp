@@ -27,18 +27,35 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+
+#include <ros/ros.h>
+#include <nodelet/nodelet.h>
+#include <pluginlib/class_list_macros.h>
+ 
 #include <move_base/move_base.h>
 
-int main(int argc, char** argv){
-  ros::init(argc, argv, "move_base_node");
-  tf::TransformListener tf(ros::Duration(10));
-  ros::NodeHandle nh;
-  ros::NodeHandle private_nh("~");
+namespace move_base
+{
+  
+class MoveBaseNodelet : public nodelet::Nodelet
+{
+  public:
+    MoveBaseNodelet()  {};
 
-  move_base::MoveBase move_base( tf, nh, private_nh );
+    ~MoveBaseNodelet() {}
+  
+    virtual void onInit()
+    {
+      NODELET_INFO_STREAM("Initialising move_base nodelet...");
+      tf::TransformListener tf(ros::Duration(10));
+      mb_.reset(new MoveBase(tf, getNodeHandle(), getPrivateNodeHandle()));
+    };
 
-  //ros::MultiThreadedSpinner s;
-  ros::spin();
+  private:  
+    boost::shared_ptr<MoveBase> mb_;
+};
 
-  return(0);
-}
+
+} // namespace move_base
+ 
+ PLUGINLIB_EXPORT_CLASS(move_base::MoveBaseNodelet, nodelet::Nodelet)
